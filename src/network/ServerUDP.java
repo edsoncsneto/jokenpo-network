@@ -120,19 +120,14 @@ public class ServerUDP {
                 break;
             }
         }
+
         if (removedPlayer != null) {
             playerAddresses.remove(removedPlayer);
             playerPorts.remove(removedPlayer);
             playerScores.remove(removedPlayer);
             confirmedPlayers--;
 
-            if (confirmedPlayers == 0) {
-                System.out.println("Todos os jogadores saíram. O jogo será encerrado.");
-                socket.close();
-                System.exit(0);
-            }
-
-            broadcast("Jogador " + removedPlayer + " desconectou. Aguardando um novo jogador...");
+            endGame();
         }
     }
 
@@ -162,20 +157,33 @@ public class ServerUDP {
 
     private static void checkDisconnectedPlayers() throws IOException {
         List<String> disconnectedPlayers = new ArrayList<>();
+
         for (String player : playerAddresses.keySet()) {
             InetAddress address = playerAddresses.get(player);
             int port = playerPorts.get(player);
+
             try {
-                sendMessage(address, port, "");
+                sendMessage(address, port, "PING");
             } catch (IOException e) {
                 disconnectedPlayers.add(player);
             }
         }
-        for (String player : disconnectedPlayers) {
-            System.out.println("Jogador " + player + " foi desconectado inesperadamente.");
-            broadcast("Jogador " + player + " foi desconectado.");
-            removePlayer(playerAddresses.get(player));
+
+        // Se algum jogador for desconectado, encerra a partida
+        if (!disconnectedPlayers.isEmpty()) {
+            for (String player : disconnectedPlayers) {
+                System.out.println("Jogador desconectado: " + player);
+                broadcast("AVISO: O jogador " + player + " foi desconectado. O jogo será encerrado.");
+                removePlayer(playerAddresses.get(player));
+            }
+            endGame();
         }
+    }
+
+    private static void endGame() throws IOException {
+        broadcast("ENCERRAR: O servidor foi encerrado após a saída de um jogador.");
+        socket.close();
+        System.exit(0);
     }
 
 

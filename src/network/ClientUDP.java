@@ -27,6 +27,11 @@ public class ClientUDP {
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
+                } finally {
+                    if (socket != null && !socket.isClosed()) {
+                        socket.close();
+                    }
+                    System.out.println("Cliente desconectado.");
                 }
             }));
 
@@ -46,12 +51,27 @@ public class ClientUDP {
                 String message = new String(packet.getData(), 0, packet.getLength());
                 System.out.println(message);
 
+                if (message.startsWith("ENCERRAR")) {
+                    break;
+                }
+
                 if (message.equals("INICIAR") || message.startsWith("Nova rodada iniciando")) {
                     do {
                         System.out.println("Escolha PEDRA, PAPEL ou TESOURA:");
                         if (!scanner.hasNextLine()) {
                             System.out.println("Entrada encerrada.");
-                            return;
+                            try {
+                                if (!socket.isClosed()) {
+                                    sendMessage("SAIR");
+                                    System.out.println("\nVocê saiu do jogo.");
+                                }
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            } finally {
+                                if (socket != null && !socket.isClosed()) {
+                                    socket.close();
+                                }
+                            }
                         }
                         input = scanner.nextLine().toUpperCase();
                     } while (!input.equals("PEDRA") && !input.equals("PAPEL") && !input.equals("TESOURA"));
@@ -64,8 +84,6 @@ public class ClientUDP {
                     System.out.println("Deseja jogar novamente? (JOGAR_NOVAMENTE ou SAIR):");
                     input = scanner.nextLine().toUpperCase();
                     sendMessage(input);
-                } else if (message.startsWith("Jogador") || message.contains("desconectou")) {
-                    System.out.println(message);
                 }
             }
         } catch (NoSuchElementException e) {
