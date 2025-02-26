@@ -43,8 +43,11 @@ public class ClientUDP {
             String playerName = scanner.nextLine();
             sendMessage("NOME:" + playerName);
 
-            System.out.println("Digite OK para iniciar a partida:");
-            String input = scanner.nextLine();
+            String input;
+            do {
+                System.out.println("Digite OK para iniciar a partida:");
+                input = scanner.nextLine().trim().toUpperCase();
+            } while (!input.equals("OK") && !input.equals("ok"));
             sendMessage("OK");
 
             while (true) {
