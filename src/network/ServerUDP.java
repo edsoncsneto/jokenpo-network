@@ -91,33 +91,15 @@ public class ServerUDP {
         }
     }
 
-    private static void checkDisconnectedPlayers() throws IOException {
-        List<String> disconnectedPlayers = new ArrayList<>();
-
-        for (String player : playerAddresses.keySet()) {
-            InetAddress address = playerAddresses.get(player);
-            int port = playerPorts.get(player);
-            try {
-                sendMessage(address, port, ""); //
-            } catch (IOException e) {
-                disconnectedPlayers.add(player);
-            }
-        }
-
-        for (String player : disconnectedPlayers) {
-            int port = playerPorts.get(player);
-            System.out.println("Jogador " + player + " foi desconectado inesperadamente.");
-            broadcast("Jogador " + player + " foi desconectado.");
-            removePlayer(port);
-        }
-        for (String player : disconnectedPlayers) {
-            System.out.println(player);
-        }
-
-    }
-
 
     private static void processGame() throws IOException {
+        // Se restar só um jogador, ele vence automaticamente
+        if (playerMoves.size() < 2) {  
+            broadcast("Jogadores insuficientes. O jogo será encerrado.");
+            determineWinner(); 
+            return;
+        }
+
         broadcast("Rodada " + (currentRound + 1) + " encerrada.");
         currentRound++;
         compareMoves();
@@ -131,7 +113,7 @@ public class ServerUDP {
         }
     }
 
-
+    // MÉTODO PARA DETERMINAR O VENCEDOR DA PARTIDA
     private static void determineWinner() throws IOException {
         String winner = Collections.max(playerScores.entrySet(), Map.Entry.comparingByValue()).getKey();
         broadcast("VENCEDOR: " + winner);
@@ -159,12 +141,46 @@ public class ServerUDP {
             }
         }
 
+        // Se houver menos de 4 jogadores, aguardar novos jogadores antes de reiniciar
+        if (confirmedPlayers < MAX_PLAYERS) {
+            broadcast("Aguardando novos jogadores para iniciar uma nova partida...");
+            waitForNewPlayers();
+        }
+
         System.out.println("Todos os jogadores confirmaram. Reiniciando jogo...");
         resetGame();
         broadcast("INICIAR");
     }
 
-        private static void removePlayer(int port) throws IOException {
+    // MÉTODO PARA AGUARDAR UM NOVO JOGADOR, ANTES DE INCIAR UMA NOVA PARTIDA.
+    private static void waitForNewPlayers() throws IOException {
+        while (confirmedPlayers < MAX_PLAYERS) {
+            byte[] buffer = new byte[1024];
+            DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+            socket.receive(packet);
+            String message = new String(packet.getData(), 0, packet.getLength());
+    
+            if (message.startsWith("NOME:")) {
+                String playerName = message.split(":")[1];
+    
+                if (playerAddresses.containsKey(playerName)) {
+                    sendMessage(packet.getAddress(), packet.getPort(), "ERRO: Nome já utilizado. Escolha outro.");
+                    continue;
+                }
+    
+                playerAddresses.put(playerName, packet.getAddress());
+                playerPorts.put(playerName, packet.getPort());
+                playerScores.put(playerName, 0);
+                confirmedPlayers++;
+                System.out.println("Novo jogador entrou: " + playerName);
+            }
+        }
+    
+        broadcast("Todos os jogadores confirmaram. Aguardando confirmação para iniciar nova partida.");
+    }
+
+    // MÉTODO PARA REMOVER UM JOGADOR (PLAYER)
+    private static void removePlayer(int port) throws IOException {
         String removedPlayer = null;
         for (String player : playerPorts.keySet()) {
             if (playerPorts.get(player).equals(port)) {
@@ -177,18 +193,25 @@ public class ServerUDP {
             playerPorts.remove(removedPlayer);
             playerScores.remove(removedPlayer);
             confirmedPlayers--;
-
+            
+            // Se não restar nenhum jogador, o servidor é encerrado.
             if (confirmedPlayers == 0) {
                 System.out.println("Todos os jogadores saíram. O jogo será encerrado.");
                 socket.close();
                 System.exit(0);
             }
 
+            // Se houver apenas um jogador, ele vence automaticamente.
+            if (confirmedPlayers == 1) {
+                determineWinner();
+                return;
+            }
+
             broadcast("Jogador " + removedPlayer + " desconectou.");
         }
     }
 
-
+    // MÉTODO PARA COMPARAR OS MOVIMENTOS A CADA RODADA (ROUND)
     private static void compareMoves() {
         roundScores.clear(); // Resetar pontuação da rodada
 
@@ -212,7 +235,7 @@ public class ServerUDP {
         }
     }
 
-
+    // MÉTODO PARA ENVIAR OS DADOS DA RODADA
     private static void broadcastScores() throws IOException {
         StringBuilder scoreMessage = new StringBuilder("\nDADOS DA RODADA " + currentRound + "\n");
         scoreMessage.append("----------------------------------------------------\n");
@@ -245,7 +268,7 @@ public class ServerUDP {
         broadcast(scoreMessage.toString());
     }
 
-
+    // MÉTODO PARA ENVIAR MENSAGEM AOS JOGADORES (PLAYERS)
     private static void sendMessage(InetAddress address, int port, String message) throws IOException {
         byte[] data = message.getBytes();
         DatagramPacket packet = new DatagramPacket(data, data.length, address, port);
@@ -260,7 +283,7 @@ public class ServerUDP {
         }
     }
 
-    
+    // MÉTODO PARA RESETAR O JOGO APÓS O FIM DOS ROUNDS
     private static void resetGame() {
         playerMoves.clear();
         roundScores.clear();
