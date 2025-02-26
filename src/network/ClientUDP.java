@@ -2,7 +2,6 @@ package network;
 
 import java.net.*;
 import java.io.*;
-import java.util.NoSuchElementException;
 import java.util.Scanner;
 
 public class ClientUDP {
@@ -35,7 +34,7 @@ public class ClientUDP {
                     } catch (IOException e) {
                         System.out.println("Erro ao tentar desconectar.");
                     }
-                
+
                     System.out.println("Cliente desconectado.");
                 }
             }));
@@ -59,11 +58,11 @@ public class ClientUDP {
                 if (message.startsWith("ENCERRAR")) {
                     System.out.println("O servidor foi encerrado. O jogo será finalizado.");
                     break;
-                }                
+                }
 
                 if (message.startsWith("Jogador") && message.contains("desconectou")) {
                     System.out.println(message);
-                }                
+                }
 
                 if (message.equals("INICIAR") || message.startsWith("Nova rodada iniciando")) {
                     String jogada;
@@ -73,27 +72,26 @@ public class ClientUDP {
                     } while (!jogada.equals("PEDRA") && !jogada.equals("PAPEL") && !jogada.equals("TESOURA"));
 
                     sendMessage("JOGADA:" + playerName + ":" + jogada);
-                } else if (message.startsWith("PLACAR:")) {
-                    System.out.println("Placar atualizado: " + message);
-                } else if (message.startsWith("VENCEDOR:")) {
-                    System.out.println("Fim do jogo! Desejam jogar novamente? (S/N)");
-
-                    while (true) {
-                        if (scanner.hasNextLine()) {
-                            input = scanner.nextLine().trim().toUpperCase();
-                            if (input.equals("S") || input.equals("N")) {
-                                sendMessage(input);
-                                break; // Sai do loop ao receber uma resposta válida
-                            } else {
-                                System.out.println("Resposta inválida. Digite 'S' para continuar ou 'N' para sair.");
-                            }
-                        }
-                    }
                 }
 
+                // Se o servidor perguntar se quer jogar novamente, permitir entrada do jogador
+                if (message.contains("Desejam jogar novamente?")) {
+                    String resposta;
+                    do {
+                        System.out.println("Digite 'S' para continuar ou 'N' para sair:");
+                        resposta = scanner.nextLine().trim().toUpperCase();
+                    } while (!resposta.equals("S") && !resposta.equals("N"));
+
+                    sendMessage(resposta);
+
+                    // Se o jogador escolher "N", mostrar mensagem e encerrar o cliente
+                    if (resposta.equals("N")) {
+                        System.out.println("\nVocê escolheu sair do jogo. Obrigado por jogar!");
+                        socket.close();
+                        break; // Sai do loop e finaliza o cliente
+                    }
+                }
             }
-        } catch (NoSuchElementException e) {
-            System.out.println("O jogo foi interrompido.");
         } catch (IOException e) {
             e.printStackTrace();
         } finally {

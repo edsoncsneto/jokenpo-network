@@ -9,7 +9,7 @@ import java.util.*;
 public class ServerUDP {
     private static final int PORT = 9876;
     private static final int MAX_PLAYERS = 4;
-    private static final int MAX_ROUNDS = 5;
+    private static final int MAX_ROUNDS = 2;
     private static Map<String, Integer> playerPorts = new HashMap<>();
     private static Map<String, InetAddress> playerAddresses = new HashMap<>();
     private static Map<String, String> playerMoves = new HashMap<>();
@@ -49,8 +49,8 @@ public class ServerUDP {
                 playerPorts.put(playerName, port);
                 playerScores.put(playerName, 0);
                 System.out.println("Jogador registrado: " + playerName + " -> " + address + ":" + port);
-            } 
-            
+            }
+
             // AGUARDA CONFIRMAÇÃO DOS JOGADORES (PLAYERS)
             else if (message.equals("OK")) {
                 confirmedPlayers++;
@@ -61,8 +61,8 @@ public class ServerUDP {
                     System.out.println("Todos os jogadores confirmaram. Iniciando o jogo...");
                     broadcast("INICIAR");
                 }
-            } 
-            
+            }
+
             // VALIDA AS JOGADAS DE CADA JOGADOR (PLAYER)
             else if (message.startsWith("JOGADA:")) {
                 String[] parts = message.split(":");
@@ -86,7 +86,7 @@ public class ServerUDP {
                 } else {
                     sendMessage(playerAddresses.get(playerName), playerPorts.get(playerName), "AGUARDANDO DEMAIS JOGADORES...");
                 }
-            } 
+            }
             // REMOVE UM JOGADOR (PLAYER) QUE ENVIAR A MENSAGEM "SAIR"
             else if (message.equals("SAIR")) {
                 removePlayer(port);
@@ -97,9 +97,9 @@ public class ServerUDP {
     // MÉTODO PARA PROCESSAR A RODADA
     private static void processGame() throws IOException {
         // Se restar só um jogador, ele vence automaticamente
-        if (playerMoves.size() < 2) {  
+        if (playerMoves.size() < 2) {
             broadcast("Jogadores insuficientes. O jogo será encerrado.");
-            determineWinner(); 
+            determineWinner();
             return;
         }
 
@@ -116,44 +116,105 @@ public class ServerUDP {
         }
     }
 
-    // MÉTODO PARA DETERMINAR O VENCEDOR DA PARTIDA
+    // MÉTODO PARA DETERMINAR O VENCEDOR E EXIBIR O PLACAR FINAL
     private static void determineWinner() throws IOException {
-        String winner = Collections.max(playerScores.entrySet(), Map.Entry.comparingByValue()).getKey();
-        broadcast("VENCEDOR: " + winner);
-        broadcast("Aguardando confirmação de jogadores...");
+        // Ordenar jogadores pela pontuação (do maior para o menor)
+        List<Map.Entry<String, Integer>> ranking = new ArrayList<>(playerScores.entrySet());
+        ranking.sort((a, b) -> b.getValue().compareTo(a.getValue())); // Ordenação decrescente
 
-        int playersReady = 0;
-        int expectedPlayers = playerAddresses.size(); // Número real de jogadores conectados
-        System.out.println("Aguardando resposta dos jogadores...");
+        // Criar a mensagem do placar final
+        StringBuilder finalScoreMessage = new StringBuilder("\nRESULTADO FINAL:\n");
+        finalScoreMessage.append("--------------------------------------\n");
 
-        while (playersReady < expectedPlayers) {
+        int rank = 1;
+        for (int i = 0; i < ranking.size(); i++) {
+            String playerName = ranking.get(i).getKey();
+            int score = ranking.get(i).getValue();
+
+            // Se houver empate na pontuação, mantém a mesma posição
+            if (i > 0 && ranking.get(i).getValue().equals(ranking.get(i - 1).getValue())) {
+                rank--; // Mantém a posição anterior em caso de empate
+            }
+
+            finalScoreMessage.append(rank).append("º Lugar: ").append(playerName).append(" - ").append(score).append(" pontos\n");
+            rank++;
+        }
+
+        finalScoreMessage.append("--------------------------------------\n");
+
+        // Enviar o placar final para todos os jogadores
+        broadcast(finalScoreMessage.toString());
+
+        System.out.println(finalScoreMessage.toString());
+
+        // Perguntar se querem jogar novamente
+        broadcast("Fim do jogo! Desejam jogar novamente? (S/N)");
+
+        Map<Integer, String> playerResponses = new HashMap<>();
+        int expectedPlayers = playerAddresses.size();
+        int playersResponded = 0;
+
+        while (playersResponded < expectedPlayers) {
             try {
                 byte[] buffer = new byte[1024];
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 socket.receive(packet);
                 String message = new String(packet.getData(), 0, packet.getLength()).trim().toUpperCase();
+                int playerPort = packet.getPort();
 
-                if (message.equals("S")) {
-                    playersReady++;
-                } else if (message.equals("N")) {
-                    removePlayer(packet.getPort());
-                    expectedPlayers--;
+                // Registra resposta do jogador apenas se for "S" ou "N"
+                if (message.equals("S") || message.equals("N")) {
+                    if (!playerResponses.containsKey(playerPort)) {
+                        playerResponses.put(playerPort, message);
+                        playersResponded++;
+                    }
                 }
             } catch (IOException e) {
                 System.out.println("Erro ao receber resposta dos jogadores.");
             }
         }
 
-        // Se houver menos de 4 jogadores, aguardar novos jogadores antes de reiniciar
-        if (confirmedPlayers < MAX_PLAYERS) {
-            broadcast("Aguardando novos jogadores para iniciar uma nova partida...");
-            waitForNewPlayers();
+        // Remover os jogadores que não quiseram continuar
+        playerResponses.forEach((port, response) -> {
+            if (response.equals("N")) {
+                try {
+                    removePlayer(port);
+                    broadcast("Um jogador deixou o jogo. Aguardando novos jogadores...");
+                } catch (IOException e) {
+                    System.out.println("Erro ao remover jogador.");
+                }
+            }
+        });
+
+        // Verifica quantos jogadores ainda estão conectados
+        int remainingPlayers = playerAddresses.size();
+
+        // Se todos saíram, encerra o jogo
+        if (remainingPlayers == 0) {
+            System.out.println("Todos os jogadores saíram. O jogo será encerrado.");
+            broadcast("Todos os jogadores saíram. O servidor será encerrado.");
+            socket.close();
+            System.exit(0);
         }
 
-        System.out.println("Todos os jogadores confirmaram. Reiniciando jogo...");
+        // Se houver menos de 4 jogadores, aguardar novos jogadores antes de iniciar
+        if (remainingPlayers < MAX_PLAYERS) {
+            broadcast("Jogadores insuficientes. Aguardando completar o quadro de 4 jogadores...");
+
+            // Aguarda novos jogadores até completar 4 jogadores novamente
+            while (remainingPlayers < MAX_PLAYERS) {
+                waitForNewPlayers();
+                remainingPlayers = playerAddresses.size(); // Atualiza o número de jogadores conectados
+            }
+        }
+
+        System.out.println("Número suficiente de jogadores alcançado. Reiniciando jogo...");
+        broadcast("Número suficiente de jogadores alcançado. Reiniciando jogo...");
         resetGame();
         broadcast("INICIAR");
     }
+
+
 
     // MÉTODO PARA AGUARDAR UM NOVO JOGADOR, ANTES DE INCIAR UMA NOVA PARTIDA.
     private static void waitForNewPlayers() throws IOException {
@@ -162,15 +223,15 @@ public class ServerUDP {
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
             socket.receive(packet);
             String message = new String(packet.getData(), 0, packet.getLength());
-    
+
             if (message.startsWith("NOME:")) {
                 String playerName = message.split(":")[1];
-    
+
                 if (playerAddresses.containsKey(playerName)) {
                     sendMessage(packet.getAddress(), packet.getPort(), "ERRO: Nome já utilizado. Escolha outro.");
                     continue;
                 }
-    
+
                 playerAddresses.put(playerName, packet.getAddress());
                 playerPorts.put(playerName, packet.getPort());
                 playerScores.put(playerName, 0);
@@ -178,7 +239,7 @@ public class ServerUDP {
                 System.out.println("Novo jogador entrou: " + playerName);
             }
         }
-    
+
         broadcast("Todos os jogadores confirmaram. Aguardando confirmação para iniciar nova partida.");
     }
 
@@ -197,7 +258,7 @@ public class ServerUDP {
             playerScores.remove(removedPlayer);
             playerMoves.remove(removedPlayer);
             confirmedPlayers--;
-            
+
             // Se não restar nenhum jogador, o servidor é encerrado.
             if (confirmedPlayers == 0) {
                 System.out.println("Todos os jogadores saíram. O jogo será encerrado.");
@@ -224,7 +285,7 @@ public class ServerUDP {
     // MÉTODO PARA VERIFICAR OS JOGADORES CONECTADOS
     private static void checkDisconnectedPlayers() throws IOException {
         List<String> disconnectedPlayers = new ArrayList<>();
-    
+
         for (String player : playerAddresses.keySet()) {
             InetAddress address = playerAddresses.get(player);
             int port = playerPorts.get(player);
@@ -234,11 +295,11 @@ public class ServerUDP {
                 disconnectedPlayers.add(player); // Se o envio falhar, o jogador está offline
             }
         }
-    
+
         for (String player : disconnectedPlayers) {
             removePlayer(playerPorts.get(player)); // Remove os jogadores desconectados
         }
-    }    
+    }
 
     // MÉTODO PARA COMPARAR OS MOVIMENTOS A CADA RODADA (ROUND)
     private static void compareMoves() {
