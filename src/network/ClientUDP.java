@@ -83,7 +83,7 @@ public class ClientUDP {
                             input = scanner.nextLine().trim().toUpperCase();
                             if (input.equals("S") || input.equals("N")) {
                                 sendMessage(input);
-                                break; // Sai do loop ao receber uma resposta válida
+                                break;
                             } else {
                                 System.out.println("Resposta inválida. Digite 'S' para continuar ou 'N' para sair.");
                             }
