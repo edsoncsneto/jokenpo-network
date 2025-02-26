@@ -76,11 +76,12 @@ public class ServerUDP {
                     socket.receive(newPacket);
                     move = new String(newPacket.getData(), 0, newPacket.getLength());
                 }
-                sendMessage(playerAddresses.get(playerName), playerPorts.get(playerName), "AGUARGANDO DEMAIS JOGADORES...");
                 playerMoves.put(playerName, move);
 
-                if (playerMoves.size() == confirmedPlayers) {
+                if (playerMoves.size() == playerAddresses.size()) {
                     processGame();
+                } else {
+                    sendMessage(playerAddresses.get(playerName), playerPorts.get(playerName), "AGUARDANDO DEMAIS JOGADORES...");
                 }
             } 
             // REMOVE UM JOGADOR (PLAYER) QUE ENVIAR A MENSAGEM "SAIR"
@@ -88,6 +89,31 @@ public class ServerUDP {
                 removePlayer(port);
             }
         }
+    }
+
+    private static void checkDisconnectedPlayers() throws IOException {
+        List<String> disconnectedPlayers = new ArrayList<>();
+
+        for (String player : playerAddresses.keySet()) {
+            InetAddress address = playerAddresses.get(player);
+            int port = playerPorts.get(player);
+            try {
+                sendMessage(address, port, ""); //
+            } catch (IOException e) {
+                disconnectedPlayers.add(player);
+            }
+        }
+
+        for (String player : disconnectedPlayers) {
+            int port = playerPorts.get(player);
+            System.out.println("Jogador " + player + " foi desconectado inesperadamente.");
+            broadcast("Jogador " + player + " foi desconectado.");
+            removePlayer(port);
+        }
+        for (String player : disconnectedPlayers) {
+            System.out.println(player);
+        }
+
     }
 
 
@@ -109,29 +135,36 @@ public class ServerUDP {
     private static void determineWinner() throws IOException {
         String winner = Collections.max(playerScores.entrySet(), Map.Entry.comparingByValue()).getKey();
         broadcast("VENCEDOR: " + winner);
-        broadcast("Fim do jogo! Desejam jogar novamente? (S/N)");
+        broadcast("Aguardando confirmação de jogadores...");
 
         int playersReady = 0;
-        while (playersReady < MAX_PLAYERS) {
-            byte[] buffer = new byte[1024];
-            DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-            socket.receive(packet);
-            String message = new String(packet.getData(), 0, packet.getLength());
+        int expectedPlayers = playerAddresses.size(); // Número real de jogadores conectados
+        System.out.println("Aguardando resposta dos jogadores...");
 
-            if (message.equals("S")) {
-                playersReady++;
-            } else if (message.equals("N")) {
-                removePlayer(packet.getPort());
+        while (playersReady < expectedPlayers) {
+            try {
+                byte[] buffer = new byte[1024];
+                DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                socket.receive(packet);
+                String message = new String(packet.getData(), 0, packet.getLength()).trim().toUpperCase();
+
+                if (message.equals("S")) {
+                    playersReady++;
+                } else if (message.equals("N")) {
+                    removePlayer(packet.getPort());
+                    expectedPlayers--;
+                }
+            } catch (IOException e) {
+                System.out.println("Erro ao receber resposta dos jogadores.");
             }
-            System.out.println(playersReady);
         }
 
+        System.out.println("Todos os jogadores confirmaram. Reiniciando jogo...");
         resetGame();
         broadcast("INICIAR");
     }
 
-
-    private static void removePlayer(int port) throws IOException {
+        private static void removePlayer(int port) throws IOException {
         String removedPlayer = null;
         for (String player : playerPorts.keySet()) {
             if (playerPorts.get(player).equals(port)) {
