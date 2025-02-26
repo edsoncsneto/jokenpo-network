@@ -212,6 +212,12 @@ public class ServerUDP {
             }
 
             broadcast("Jogador " + removedPlayer + " desconectou.");
+
+             // Se um jogador saiu no meio da rodada, verificar desconectados e continuar o jogo
+            if (currentRound > 0) {
+                checkDisconnectedPlayers();
+                processGame();
+            }
         }
     }
 
