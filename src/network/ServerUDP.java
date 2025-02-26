@@ -120,7 +120,7 @@ public class ServerUDP {
     private static void determineWinner() throws IOException {
         // Ordenar jogadores pela pontuação (do maior para o menor)
         List<Map.Entry<String, Integer>> ranking = new ArrayList<>(playerScores.entrySet());
-        ranking.sort((a, b) -> b.getValue().compareTo(a.getValue())); // Ordenação decrescente
+        ranking.sort((a, b) -> b.getValue().compareTo(a.getValue()));
 
         // Criar a mensagem do placar final
         StringBuilder finalScoreMessage = new StringBuilder("\nRESULTADO FINAL:\n");
@@ -133,7 +133,7 @@ public class ServerUDP {
 
             // Se houver empate na pontuação, mantém a mesma posição
             if (i > 0 && ranking.get(i).getValue().equals(ranking.get(i - 1).getValue())) {
-                rank--; // Mantém a posição anterior em caso de empate
+                rank--;
             }
 
             finalScoreMessage.append(rank).append("º Lugar: ").append(playerName).append(" - ").append(score).append(" pontos\n");
@@ -204,7 +204,7 @@ public class ServerUDP {
             // Aguarda novos jogadores até completar 4 jogadores novamente
             while (remainingPlayers < MAX_PLAYERS) {
                 waitForNewPlayers();
-                remainingPlayers = playerAddresses.size(); // Atualiza o número de jogadores conectados
+                remainingPlayers = playerAddresses.size();
             }
         }
 
