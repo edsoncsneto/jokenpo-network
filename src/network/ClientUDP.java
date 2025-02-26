@@ -39,9 +39,9 @@ public class ClientUDP {
             String playerName = scanner.nextLine();
             sendMessage("NOME:" + playerName);
 
-            System.out.println("Confirme para iniciar (CONFIRMAR):");
+            System.out.println("Digite OK para iniciar a partida:");
             String input = scanner.nextLine();
-            sendMessage("CONFIRMAR");
+            sendMessage("OK");
 
             while (true) {
                 byte[] buffer = new byte[1024];
@@ -62,7 +62,6 @@ public class ClientUDP {
                             System.out.println("Entrada encerrada.");
                             try {
                                 if (!socket.isClosed()) {
-                                    sendMessage("SAIR");
                                     System.out.println("\nVocê saiu do jogo.");
                                 }
                             } catch (IOException e) {
@@ -72,18 +71,19 @@ public class ClientUDP {
                                     socket.close();
                                 }
                             }
-                        }
-                        input = scanner.nextLine().toUpperCase();
-                    } while (!input.equals("PEDRA") && !input.equals("PAPEL") && !input.equals("TESOURA"));
 
                     sendMessage("JOGADA:" + playerName + ":" + input);
                 } else if (message.startsWith("PLACAR:")) {
                     System.out.println("Placar atualizado: " + message);
                 } else if (message.startsWith("VENCEDOR:")) {
+                    System.out.println("----------------------------------------------------\n");
                     System.out.println("🏆 " + message);
-                    System.out.println("Deseja jogar novamente? (JOGAR_NOVAMENTE ou SAIR):");
+                    System.out.println("----------------------------------------------------\n");
+                    System.out.println("\nDeseja jogar novamente? (S/N):");
                     input = scanner.nextLine().toUpperCase();
                     sendMessage(input);
+                } else if (message.startsWith("Jogador") || message.contains("desconectou")) {
+                    System.out.println(message);
                 }
             }
         } catch (NoSuchElementException e) {

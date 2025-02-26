@@ -14,6 +14,7 @@ public class ServerUDP {
     private static Map<String, InetAddress> playerAddresses = new HashMap<>();
     private static Map<String, String> playerMoves = new HashMap<>();
     private static Map<String, Integer> playerScores = new HashMap<>();
+    private static Map<String, Integer> roundScores = new HashMap<>(); // Armazena pontuação da rodada
     private static int confirmedPlayers = 0;
     private static int currentRound = 0;
     private static DatagramSocket socket;
@@ -40,7 +41,7 @@ public class ServerUDP {
                 playerPorts.put(playerName, port);
                 playerScores.put(playerName, 0);
                 System.out.println("Jogador registrado: " + playerName + " -> " + address + ":" + port);
-            } else if (message.equals("CONFIRMAR")) {
+            } else if (message.equals("OK")) {
                 confirmedPlayers++;
                 System.out.println("Jogador confirmado: " + address + ":" + port);
 
@@ -73,13 +74,34 @@ public class ServerUDP {
         }
     }
 
+    private static void checkDisconnectedPlayers() throws IOException {
+        List<String> disconnectedPlayers = new ArrayList<>();
+
+        for (String player : playerAddresses.keySet()) {
+            InetAddress address = playerAddresses.get(player);
+            int port = playerPorts.get(player);
+            try {
+                sendMessage(address, port, ""); // Envia uma mensagem para verificar se o jogador ainda está ativo
+            } catch (IOException e) {
+                disconnectedPlayers.add(player);
+            }
+        }
+
+        for (String player : disconnectedPlayers) {
+            System.out.println("Jogador " + player + " foi desconectado inesperadamente.");
+            broadcast("Jogador " + player + " foi desconectado.");
+            removePlayer(playerAddresses.get(player));
+        }
+    }
+
+
     private static void processGame() throws IOException {
         checkDisconnectedPlayers();
-        broadcast("Rodada " + (currentRound + 1) + " encerrada. Calculando resultados...");
+        broadcast("Rodada " + (currentRound + 1) + " encerrada.");
         currentRound++;
         compareMoves();
-        playerMoves.clear();
         broadcastScores();
+        playerMoves.clear();
 
         if (currentRound < MAX_ROUNDS) {
             broadcast("Nova rodada iniciando...");
@@ -92,7 +114,7 @@ public class ServerUDP {
         checkDisconnectedPlayers();
         String winner = Collections.max(playerScores.entrySet(), Map.Entry.comparingByValue()).getKey();
         broadcast("VENCEDOR: " + winner);
-        broadcast("Fim do jogo! Desejam jogar novamente? (JOGAR_NOVAMENTE ou SAIR)");
+        broadcast("Fim do jogo! Desejam jogar novamente? (S/N)");
 
         int playersReady = 0;
         while (playersReady < MAX_PLAYERS) {
@@ -101,7 +123,7 @@ public class ServerUDP {
             socket.receive(packet);
             String message = new String(packet.getData(), 0, packet.getLength());
 
-            if (message.equals("JOGAR_NOVAMENTE")) {
+            if (message.equals("S")) {
                 playersReady++;
             } else if (message.equals("SAIR")) {
                 removePlayer(packet.getAddress());
@@ -120,18 +142,29 @@ public class ServerUDP {
                 break;
             }
         }
-
         if (removedPlayer != null) {
             playerAddresses.remove(removedPlayer);
             playerPorts.remove(removedPlayer);
             playerScores.remove(removedPlayer);
             confirmedPlayers--;
 
-            endGame();
+            if (confirmedPlayers == 0) {
+                System.out.println("Todos os jogadores saíram. O jogo será encerrado.");
+                socket.close();
+                System.exit(0);
+            }
+
+            broadcast("Jogador " + removedPlayer + " desconectou. Aguardando um novo jogador...");
         }
     }
 
     private static void compareMoves() {
+        roundScores.clear(); // Resetar pontuação da rodada
+
+        for (String player : playerMoves.keySet()) {
+            roundScores.put(player, 0); // Inicializa a pontuação da rodada com 0 pontos
+        }
+
         for (String player1 : playerMoves.keySet()) {
             String move1 = playerMoves.get(player1);
             for (String player2 : playerMoves.keySet()) {
@@ -141,6 +174,7 @@ public class ServerUDP {
                             (move1.equals("TESOURA") && move2.equals("PAPEL")) ||
                             (move1.equals("PAPEL") && move2.equals("PEDRA"))) {
                         playerScores.put(player1, playerScores.get(player1) + 1);
+                        roundScores.put(player1, roundScores.get(player1) + 1); // Incrementa na pontuação da rodada
                     }
                 }
             }
@@ -148,44 +182,36 @@ public class ServerUDP {
     }
 
     private static void broadcastScores() throws IOException {
-        StringBuilder scoreMessage = new StringBuilder("PLACAR:");
+        StringBuilder scoreMessage = new StringBuilder("\nDADOS DA RODADA " + currentRound + "\n");
+        scoreMessage.append("----------------------------------------------------\n");
+        scoreMessage.append("PONTUAÇÃO DA RODADA:\n");
+
         for (String player : playerScores.keySet()) {
-            scoreMessage.append(" ").append(player).append("=").append(playerScores.get(player));
+            int roundPoints = roundScores.getOrDefault(player, 0); // Pegamos os pontos da rodada
+            String SingularPlural = "";
+            if (roundPoints <= 1) {
+                SingularPlural = "ponto";
+            } else {
+                SingularPlural = "pontos";
+            }
+            scoreMessage.append(player).append(": ").append(roundPoints).append(" " + SingularPlural + " \n");
         }
+
+        scoreMessage.append("\nPLACAR GERAL:\n");
+        for (Map.Entry<String, Integer> entry : playerScores.entrySet()) {
+            String SingularPlural = "";
+            if (entry.getValue() <= 1) {
+                SingularPlural = "ponto";
+            } else {
+                SingularPlural = "pontos";
+            }
+            scoreMessage.append(entry.getKey()).append(": ").append(entry.getValue()).append(" " + SingularPlural + " \n");
+        }
+
+        scoreMessage.append("----------------------------------------------------\n");
+
         broadcast(scoreMessage.toString());
     }
-
-    private static void checkDisconnectedPlayers() throws IOException {
-        List<String> disconnectedPlayers = new ArrayList<>();
-
-        for (String player : playerAddresses.keySet()) {
-            InetAddress address = playerAddresses.get(player);
-            int port = playerPorts.get(player);
-
-            try {
-                sendMessage(address, port, "PING");
-            } catch (IOException e) {
-                disconnectedPlayers.add(player);
-            }
-        }
-
-        // Se algum jogador for desconectado, encerra a partida
-        if (!disconnectedPlayers.isEmpty()) {
-            for (String player : disconnectedPlayers) {
-                System.out.println("Jogador desconectado: " + player);
-                broadcast("AVISO: O jogador " + player + " foi desconectado. O jogo será encerrado.");
-                removePlayer(playerAddresses.get(player));
-            }
-            endGame();
-        }
-    }
-
-    private static void endGame() throws IOException {
-        broadcast("ENCERRAR: O servidor foi encerrado após a saída de um jogador.");
-        socket.close();
-        System.exit(0);
-    }
-
 
     private static void sendMessage(InetAddress address, int port, String message) throws IOException {
         byte[] data = message.getBytes();
@@ -201,6 +227,7 @@ public class ServerUDP {
 
     private static void resetGame() {
         playerMoves.clear();
+        roundScores.clear();
         confirmedPlayers = 0;
         currentRound = 0;
         playerScores.replaceAll((k, v) -> 0);
