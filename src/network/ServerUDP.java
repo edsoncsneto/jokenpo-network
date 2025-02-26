@@ -78,6 +78,9 @@ public class ServerUDP {
                 }
                 playerMoves.put(playerName, move);
 
+                // verifica se algum jogador(player) desconectou
+                checkDisconnectedPlayers();
+
                 if (playerMoves.size() == playerAddresses.size()) {
                     processGame();
                 } else {
@@ -91,7 +94,7 @@ public class ServerUDP {
         }
     }
 
-
+    // MÉTODO PARA PROCESSAR A RODADA
     private static void processGame() throws IOException {
         // Se restar só um jogador, ele vence automaticamente
         if (playerMoves.size() < 2) {  
@@ -192,6 +195,7 @@ public class ServerUDP {
             playerAddresses.remove(removedPlayer);
             playerPorts.remove(removedPlayer);
             playerScores.remove(removedPlayer);
+            playerMoves.remove(removedPlayer);
             confirmedPlayers--;
             
             // Se não restar nenhum jogador, o servidor é encerrado.
@@ -210,6 +214,25 @@ public class ServerUDP {
             broadcast("Jogador " + removedPlayer + " desconectou.");
         }
     }
+
+    // MÉTODO PARA VERIFICAR OS JOGADORES CONECTADOS
+    private static void checkDisconnectedPlayers() throws IOException {
+        List<String> disconnectedPlayers = new ArrayList<>();
+    
+        for (String player : playerAddresses.keySet()) {
+            InetAddress address = playerAddresses.get(player);
+            int port = playerPorts.get(player);
+            try {
+                sendMessage(address, port, ""); // Envia uma mensagem de teste
+            } catch (IOException e) {
+                disconnectedPlayers.add(player); // Se o envio falhar, o jogador está offline
+            }
+        }
+    
+        for (String player : disconnectedPlayers) {
+            removePlayer(playerPorts.get(player)); // Remove os jogadores desconectados
+        }
+    }    
 
     // MÉTODO PARA COMPARAR OS MOVIMENTOS A CADA RODADA (ROUND)
     private static void compareMoves() {
@@ -270,6 +293,7 @@ public class ServerUDP {
 
     // MÉTODO PARA ENVIAR MENSAGEM AOS JOGADORES (PLAYERS)
     private static void sendMessage(InetAddress address, int port, String message) throws IOException {
+        if (socket == null || socket.isClosed()) return;
         byte[] data = message.getBytes();
         DatagramPacket packet = new DatagramPacket(data, data.length, address, port);
         socket.send(packet);

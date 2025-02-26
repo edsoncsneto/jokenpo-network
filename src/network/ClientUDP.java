@@ -27,9 +27,15 @@ public class ClientUDP {
                 } catch (IOException e) {
                     e.printStackTrace();
                 } finally {
-                    if (socket != null && !socket.isClosed()) {
-                        socket.close();
+                    try {
+                        if (socket != null && !socket.isClosed()) {
+                            sendMessage("SAIR");
+                            socket.close();
+                        }
+                    } catch (IOException e) {
+                        System.out.println("Erro ao tentar desconectar.");
                     }
+                
                     System.out.println("Cliente desconectado.");
                 }
             }));
