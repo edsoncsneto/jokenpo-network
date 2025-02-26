@@ -14,7 +14,7 @@ public class ServerUDP {
     private static Map<String, InetAddress> playerAddresses = new HashMap<>();
     private static Map<String, String> playerMoves = new HashMap<>();
     private static Map<String, Integer> playerScores = new HashMap<>();
-    private static Map<String, Integer> roundScores = new HashMap<>(); // Armazena pontuação da rodada
+    private static Map<String, Integer> roundScores = new HashMap<>();
     private static int confirmedPlayers = 0;
     private static int currentRound = 0;
     private static DatagramSocket socket;
@@ -290,23 +290,23 @@ public class ServerUDP {
             InetAddress address = playerAddresses.get(player);
             int port = playerPorts.get(player);
             try {
-                sendMessage(address, port, ""); // Envia uma mensagem de teste
+                sendMessage(address, port, "");
             } catch (IOException e) {
-                disconnectedPlayers.add(player); // Se o envio falhar, o jogador está offline
+                disconnectedPlayers.add(player);
             }
         }
 
         for (String player : disconnectedPlayers) {
-            removePlayer(playerPorts.get(player)); // Remove os jogadores desconectados
+            removePlayer(playerPorts.get(player));
         }
     }
 
     // MÉTODO PARA COMPARAR OS MOVIMENTOS A CADA RODADA (ROUND)
     private static void compareMoves() {
-        roundScores.clear(); // Resetar pontuação da rodada
+        roundScores.clear();
 
         for (String player : playerMoves.keySet()) {
-            roundScores.put(player, 0); // Inicializa a pontuação da rodada com 0 pontos
+            roundScores.put(player, 0);
         }
 
         for (String player1 : playerMoves.keySet()) {
@@ -318,7 +318,7 @@ public class ServerUDP {
                             (move1.equals("TESOURA") && move2.equals("PAPEL")) ||
                             (move1.equals("PAPEL") && move2.equals("PEDRA"))) {
                         playerScores.put(player1, playerScores.get(player1) + 1);
-                        roundScores.put(player1, roundScores.get(player1) + 1); // Incrementa na pontuação da rodada
+                        roundScores.put(player1, roundScores.get(player1) + 1);
                     }
                 }
             }
@@ -332,7 +332,7 @@ public class ServerUDP {
         scoreMessage.append("PONTUAÇÃO DA RODADA:\n");
 
         for (String player : playerScores.keySet()) {
-            int roundPoints = roundScores.getOrDefault(player, 0); // Pegamos os pontos da rodada
+            int roundPoints = roundScores.getOrDefault(player, 0);
             String SingularPlural = "";
             if (roundPoints <= 1) {
                 SingularPlural = "ponto";
