@@ -65,9 +65,21 @@ public class ClientUDP {
                 } else if (message.startsWith("PLACAR:")) {
                     System.out.println("Placar atualizado: " + message);
                 } else if (message.startsWith("VENCEDOR:")) {
-                    input = scanner.nextLine().toUpperCase();
-                    sendMessage(input);
+                    System.out.println("Fim do jogo! Desejam jogar novamente? (S/N)");
+
+                    while (true) {
+                        if (scanner.hasNextLine()) {
+                            input = scanner.nextLine().trim().toUpperCase();
+                            if (input.equals("S") || input.equals("N")) {
+                                sendMessage(input);
+                                break; // Sai do loop ao receber uma resposta válida
+                            } else {
+                                System.out.println("Resposta inválida. Digite 'S' para continuar ou 'N' para sair.");
+                            }
+                        }
+                    }
                 }
+
             }
         } catch (NoSuchElementException e) {
             System.out.println("O jogo foi interrompido.");
