@@ -51,8 +51,13 @@ public class ClientUDP {
                 System.out.println(message);
 
                 if (message.startsWith("ENCERRAR")) {
+                    System.out.println("O servidor foi encerrado. O jogo será finalizado.");
                     break;
-                }
+                }                
+
+                if (message.startsWith("Jogador") && message.contains("desconectou")) {
+                    System.out.println(message);
+                }                
 
                 if (message.equals("INICIAR") || message.startsWith("Nova rodada iniciando")) {
                     String jogada;
