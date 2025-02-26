@@ -18,7 +18,6 @@ public class ClientUDP {
             serverAddress = InetAddress.getByName(SERVER_ADDRESS);
             scanner = new Scanner(System.in);
 
-            // Capturar interrupção do CTRL + C
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 try {
                     if (!socket.isClosed()) {
@@ -56,34 +55,18 @@ public class ClientUDP {
                 }
 
                 if (message.equals("INICIAR") || message.startsWith("Nova rodada iniciando")) {
+                    String jogada;
                     do {
                         System.out.println("Escolha PEDRA, PAPEL ou TESOURA:");
-                        if (!scanner.hasNextLine()) {
-                            System.out.println("Entrada encerrada.");
-                            try {
-                                if (!socket.isClosed()) {
-                                    System.out.println("\nVocê saiu do jogo.");
-                                }
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            } finally {
-                                if (socket != null && !socket.isClosed()) {
-                                    socket.close();
-                                }
-                            }
+                        jogada = scanner.nextLine().toUpperCase();
+                    } while (!jogada.equals("PEDRA") && !jogada.equals("PAPEL") && !jogada.equals("TESOURA"));
 
-                    sendMessage("JOGADA:" + playerName + ":" + input);
+                    sendMessage("JOGADA:" + playerName + ":" + jogada);
                 } else if (message.startsWith("PLACAR:")) {
                     System.out.println("Placar atualizado: " + message);
                 } else if (message.startsWith("VENCEDOR:")) {
-                    System.out.println("----------------------------------------------------\n");
-                    System.out.println("🏆 " + message);
-                    System.out.println("----------------------------------------------------\n");
-                    System.out.println("\nDeseja jogar novamente? (S/N):");
                     input = scanner.nextLine().toUpperCase();
                     sendMessage(input);
-                } else if (message.startsWith("Jogador") || message.contains("desconectou")) {
-                    System.out.println(message);
                 }
             }
         } catch (NoSuchElementException e) {
@@ -97,6 +80,7 @@ public class ClientUDP {
             if (socket != null && !socket.isClosed()) {
                 socket.close();
             }
+            System.out.println("Cliente finalizado.");
         }
     }
 

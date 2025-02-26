@@ -9,7 +9,7 @@ import java.util.*;
 public class ServerUDP {
     private static final int PORT = 9876;
     private static final int MAX_PLAYERS = 4;
-    private static final int MAX_ROUNDS = 5;
+    private static final int MAX_ROUNDS = 1;
     private static Map<String, Integer> playerPorts = new HashMap<>();
     private static Map<String, InetAddress> playerAddresses = new HashMap<>();
     private static Map<String, String> playerMoves = new HashMap<>();
@@ -62,14 +62,14 @@ public class ServerUDP {
                     socket.receive(newPacket);
                     move = new String(newPacket.getData(), 0, newPacket.getLength());
                 }
-
+                sendMessage(playerAddresses.get(playerName), playerPorts.get(playerName), "AGUARGANDO DEMAIS JOGADORES...");
                 playerMoves.put(playerName, move);
 
-                if (playerMoves.size() == MAX_PLAYERS) {
+                if (playerMoves.size() == confirmedPlayers) {
                     processGame();
                 }
             } else if (message.equals("SAIR")) {
-                removePlayer(address);
+                removePlayer(port);
             }
         }
     }
@@ -88,15 +88,19 @@ public class ServerUDP {
         }
 
         for (String player : disconnectedPlayers) {
+            int port = playerPorts.get(player);
             System.out.println("Jogador " + player + " foi desconectado inesperadamente.");
             broadcast("Jogador " + player + " foi desconectado.");
-            removePlayer(playerAddresses.get(player));
+            removePlayer(port);
         }
+        for (String player : disconnectedPlayers) {
+            System.out.println(player);
+        }
+
     }
 
 
     private static void processGame() throws IOException {
-        checkDisconnectedPlayers();
         broadcast("Rodada " + (currentRound + 1) + " encerrada.");
         currentRound++;
         compareMoves();
@@ -111,7 +115,6 @@ public class ServerUDP {
     }
 
     private static void determineWinner() throws IOException {
-        checkDisconnectedPlayers();
         String winner = Collections.max(playerScores.entrySet(), Map.Entry.comparingByValue()).getKey();
         broadcast("VENCEDOR: " + winner);
         broadcast("Fim do jogo! Desejam jogar novamente? (S/N)");
@@ -125,19 +128,20 @@ public class ServerUDP {
 
             if (message.equals("S")) {
                 playersReady++;
-            } else if (message.equals("SAIR")) {
-                removePlayer(packet.getAddress());
+            } else if (message.equals("N")) {
+                removePlayer(packet.getPort());
             }
+            System.out.println(playersReady);
         }
 
         resetGame();
         broadcast("INICIAR");
     }
 
-    private static void removePlayer(InetAddress address) throws IOException {
+    private static void removePlayer(int port) throws IOException {
         String removedPlayer = null;
-        for (String player : playerAddresses.keySet()) {
-            if (playerAddresses.get(player).equals(address)) {
+        for (String player : playerPorts.keySet()) {
+            if (playerPorts.get(player).equals(port)) {
                 removedPlayer = player;
                 break;
             }
@@ -154,7 +158,7 @@ public class ServerUDP {
                 System.exit(0);
             }
 
-            broadcast("Jogador " + removedPlayer + " desconectou. Aguardando um novo jogador...");
+            broadcast("Jogador " + removedPlayer + " desconectou.");
         }
     }
 
@@ -220,6 +224,7 @@ public class ServerUDP {
     }
 
     private static void broadcast(String message) throws IOException {
+        System.out.println(message);
         for (String playerName : playerAddresses.keySet()) {
             sendMessage(playerAddresses.get(playerName), playerPorts.get(playerName), message);
         }
