@@ -9,7 +9,7 @@ import java.util.*;
 public class ServerUDP {
     private static final int PORT = 9876;
     private static final int MAX_PLAYERS = 4;
-    private static final int MAX_ROUNDS = 2;
+    private static final int MAX_ROUNDS = 5;
     private static Map<String, Integer> playerPorts = new HashMap<>();
     private static Map<String, InetAddress> playerAddresses = new HashMap<>();
     private static Map<String, String> playerMoves = new HashMap<>();
